@@ -1,5 +1,6 @@
 import math
 import json
+import time
 
 from .config import CONFIG, SOURCE_BOOST, SOURCE_WEIGHT
 from .db import get_connection, get_lang_id, get_source_type_from_id
@@ -16,15 +17,11 @@ STAGE_BONUS = {
 }
 
 
-def escape_like(s: str) -> str:
-    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
-
-def compute_candidate_text_score(stage: str, source_type: str, is_primary: int, fts_rank=None) -> float:
+def compute_candidate_text_score(stage: str, source_type: str, fts_rank=None) -> float:
     source_weight = SOURCE_WEIGHT.get(source_type, 0.0)
     score = STAGE_BONUS.get(stage, 0.0)
     score += source_weight * 100.0
-    score += 20.0 if is_primary else 0.0
 
     if stage == "fts" and fts_rank is not None:
         # bm25 越小越好，这里做一个简单反转
@@ -50,54 +47,111 @@ def compute_final_score(text_score: float, best_source_type: str, entity: dict |
     importance_boost = compute_importance_boost(entity)
     return text_score * (1.0 + source_boost + importance_boost)
 
+
+def dedup_stage_rows(rows: list[dict]) -> list[dict]:
+    """
+    UNION ALL 会让同一条 name_index 记录在两个分支都命中时重复返回。
+    这里做轻量去重，避免重复计分。
+    """
+    seen = set()
+    out = []
+
+    for row in rows:
+        key = (
+            row["qid"],
+            row["name"],
+            row["source_type"],
+            row["stage"],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+
+    return out
+
+
 def run_exact_query(conn, lang_id: int, norm: str, loose: str, limit: int):
     sql = get_sql_exact()
-    cur = conn.execute(sql, (lang_id, norm, loose, limit))
+    cur = conn.execute(sql, (lang_id, norm, lang_id, loose, limit))
     rows = []
     for row in cur.fetchall():
         rows.append({
             "qid": row["qid"],
             "name": row["name"],
             "source_type": get_source_type_from_id(row["source_type_id"]),
-            "is_primary": row["is_primary"],
             "stage": "exact",
             "fts_rank": None,
         })
-    return rows
+    return dedup_stage_rows(rows)
 
+
+def build_prefix_range(prefix: str) -> tuple[str, str]:
+    if not prefix:
+        raise ValueError("prefix must not be empty")
+
+    chars = list(prefix)
+    for i in range(len(chars) - 1, -1, -1):
+        code = ord(chars[i])
+        if code < 0x10FFFF:
+            chars[i] = chr(code + 1)
+            return prefix, "".join(chars[:i + 1])
+
+    raise ValueError("failed to build prefix upper bound")
 
 def run_prefix_query(conn, lang_id: int, norm: str, loose: str, limit: int):
     sql = get_sql_prefix()
-    norm_like = escape_like(norm) + "%"
-    loose_like = escape_like(loose) + "%"
-    cur = conn.execute(sql, (lang_id, norm_like, loose_like, limit))
+
+    try:
+        norm_lo, norm_hi = build_prefix_range(norm)
+        loose_lo, loose_hi = build_prefix_range(loose)
+    except ValueError as e:
+        return []
+
+    cur = conn.execute(
+        sql,
+        (
+            lang_id, norm_lo, norm_hi,
+            lang_id, loose_lo, loose_hi,
+            limit,
+        )
+    )
+
     rows = []
     for row in cur.fetchall():
         rows.append({
             "qid": row["qid"],
             "name": row["name"],
             "source_type": get_source_type_from_id(row["source_type_id"]),
-            "is_primary": row["is_primary"],
             "stage": "prefix",
             "fts_rank": None,
         })
-    return rows
+    return dedup_stage_rows(rows)
+
+
+
+def build_lang_fts_query(lang_id: int, fts_query: str) -> str:
+    """
+    把 lang_id 合并进 FTS MATCH 表达式。
+    FTS5 中 lang_id 是独立列，因此可直接作为列过滤。
+    """
+    return f'lang_id:{lang_id} AND ({fts_query})'
 
 
 def run_fts_query(conn, lang_id: int, fts_query: str, limit: int):
     sql = get_sql_fts()
-    cur = conn.execute(sql, (lang_id, fts_query, limit))
+    match_query = build_lang_fts_query(lang_id, fts_query)
+    cur = conn.execute(sql, (match_query, limit))
     rows = []
     for row in cur.fetchall():
         rows.append({
             "qid": row["qid"],
             "name": row["name"],
             "source_type": get_source_type_from_id(row["source_type_id"]),
-            "is_primary": row["is_primary"],
             "stage": "fts",
             "fts_rank": row["fts_rank"],
         })
-    return rows
+    return dedup_stage_rows(rows)
 
 
 def fetch_entity_info(conn, qids: list[str]) -> dict[str, dict]:
@@ -130,6 +184,16 @@ def get_entity_description(entity: dict | None, lang: str) -> str | None:
 
     return descriptions.get(lang, None)
 
+
+def get_entity_title(entity: dict | None, lang: str) -> str | None:
+    if not entity:
+        return None
+    try:
+        titles = json.loads(entity["sitelinks_json"])
+    except json.JSONDecodeError:
+        return None
+    return titles.get(lang, None)
+
 def merge_candidates(lang: str, candidates: list[dict], entity_info_map: dict[str, dict], limit: int) -> SearchResponse:
     grouped = {}
 
@@ -138,7 +202,6 @@ def merge_candidates(lang: str, candidates: list[dict], entity_info_map: dict[st
         text_score = compute_candidate_text_score(
             stage=c["stage"],
             source_type=c["source_type"],
-            is_primary=c["is_primary"],
             fts_rank=c["fts_rank"],
         )
 
@@ -202,13 +265,8 @@ def merge_candidates(lang: str, candidates: list[dict], entity_info_map: dict[st
         entity = entity_info_map.get(entry["qid"])
         title = entry["best_match_name"]
         
-        if entity and entity.get("sitelinks_json"):
-            try:
-                sitelinks = json.loads(entity["sitelinks_json"])
-                if lang in sitelinks:
-                    title = sitelinks[lang]
-            except (json.JSONDecodeError, KeyError):
-                pass
+        entity_title = get_entity_title(entity, lang)
+        assert title == entity_title, f"Title mismatch: {title} != {entity_title}"
         
         item = SearchResultItem(
             qid=entry["qid"],
@@ -254,10 +312,11 @@ def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
     if not norm and not loose:
         raise InvalidQueryError("Query is empty after normalization")
 
-    
+
     candidates = []
 
     # 1) exact
+    t0 = time.perf_counter()
     exact_rows = run_exact_query(
         conn,
         lang_id,
@@ -265,12 +324,14 @@ def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
         loose or "",
         CONFIG.exact_overfetch,
     )
+    t1 = time.perf_counter()
+    print(f"exact end, cost: {(t1 - t0) * 1000:.2f}ms, rows: {len(exact_rows)}")
     candidates.extend(exact_rows)
-    print(f"exact end")
 
     # 2) prefix
     prefix_seed = norm or loose or ""
     if len(prefix_seed) >= CONFIG.min_prefix_len:
+        t0 = time.perf_counter()
         prefix_rows = run_prefix_query(
             conn,
             lang_id,
@@ -278,20 +339,27 @@ def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
             loose or "",
             CONFIG.prefix_overfetch,
         )
+        t1 = time.perf_counter()
+        print(f"prefix end, cost: {(t1 - t0) * 1000:.2f}ms, rows: {len(prefix_rows)}")
         candidates.extend(prefix_rows)
-    print(f"prefix end")
+    else:
+        print("prefix skipped (query too short)")
 
     # 3) fts
     fts_query = build_fts_query(query)
     if fts_query:
+        t0 = time.perf_counter()
         fts_rows = run_fts_query(
             conn,
             lang_id,
             fts_query,
             CONFIG.fts_overfetch,
         )
+        t1 = time.perf_counter()
+        print(f"fts end, cost: {(t1 - t0) * 1000:.2f}ms, rows: {len(fts_rows)}")
         candidates.extend(fts_rows)
-    print(f"fts end")
+    else:
+        print("fts skipped (empty query)")
 
     # 去掉完全没结果的情况
     if not candidates:

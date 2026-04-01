@@ -3,13 +3,13 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SearchConfig:
-    db_path: str = "/home/zfs01/yangs/data/wikidata/wikidata_search_db.v9.sqlite.bkp"
+    db_path: str = "/home/zfs01/yangs/data/wikidata/wikidata_search_db.v9.sqlite"
     default_limit: int = 20
     max_limit: int = 50
 
-    exact_overfetch: int = 80
-    prefix_overfetch: int = 80
-    fts_overfetch: int = 120
+    exact_overfetch: int = 32
+    prefix_overfetch: int = 32
+    fts_overfetch: int = 64
 
     min_prefix_len: int = 2
     sqlite_timeout_sec: float = 5.0
