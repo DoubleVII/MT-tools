@@ -263,14 +263,12 @@ def merge_candidates(lang: str, candidates: list[dict], entity_info_map: dict[st
     results = []
     for entry in ranked[:limit]:
         entity = entity_info_map.get(entry["qid"])
-        title = entry["best_match_name"]
         
         entity_title = get_entity_title(entity, lang)
-        assert title == entity_title, f"Title mismatch: {title} != {entity_title}"
         
         item = SearchResultItem(
             qid=entry["qid"],
-            title=title,
+            title=entity_title,
             lang=lang,
             score=round(entry["final_score"], 3),
             best_match_name=entry["best_match_name"],
