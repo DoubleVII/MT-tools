@@ -1,15 +1,13 @@
+# sql.py
 
-def get_sql_exact() -> str:
+def get_sql_exact_ids() -> str:
     return """
 SELECT
-    qid,
-    name,
+    id,
     source_type_id
 FROM (
     SELECT
         ni.id,
-        ni.qid,
-        ni.name,
         ni.source_type_id
     FROM name_index ni
     WHERE ni.lang_id = ?
@@ -19,8 +17,6 @@ FROM (
 
     SELECT
         ni.id,
-        ni.qid,
-        ni.name,
         ni.source_type_id
     FROM name_index ni
     WHERE ni.lang_id = ?
@@ -31,17 +27,14 @@ LIMIT ?
 """
 
 
-def get_sql_prefix() -> str:
+def get_sql_prefix_ids() -> str:
     return """
 SELECT
-    qid,
-    name,
+    id,
     source_type_id
 FROM (
     SELECT
         ni.id,
-        ni.qid,
-        ni.name,
         ni.source_type_id
     FROM name_index ni
     WHERE ni.lang_id = ?
@@ -52,8 +45,6 @@ FROM (
 
     SELECT
         ni.id,
-        ni.qid,
-        ni.name,
         ni.source_type_id
     FROM name_index ni
     WHERE ni.lang_id = ?
@@ -65,21 +56,27 @@ LIMIT ?
 """
 
 
-
-def get_sql_fts() -> str:
+def get_sql_fts_ids() -> str:
     return """
 SELECT
-    ni.qid,
-    ni.name,
-    ni.source_type_id,
+    rowid AS id,
     bm25(name_fts) AS fts_rank
-FROM name_fts nf
-JOIN name_index ni ON nf.rowid = ni.id
+FROM name_fts
 WHERE name_fts MATCH ?
 ORDER BY fts_rank
 LIMIT ?
 """
 
+
+SQL_NAME_INDEX_BY_IDS_TEMPLATE = """
+SELECT
+    ni.id,
+    ni.qid,
+    ni.name,
+    ni.source_type_id
+FROM name_index ni
+WHERE ni.id IN ({placeholders})
+"""
 
 SQL_ENTITY_INFO_BY_QIDS_TEMPLATE = """
 SELECT

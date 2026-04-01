@@ -7,7 +7,7 @@ from .db import get_connection, get_lang_id, get_source_type_from_id
 from .errors import InvalidQueryError
 from .models import SearchResponse, SearchResultItem
 from .normalizer import normalize_name, normalize_name_loose, build_fts_query
-from .sql import get_sql_exact, get_sql_prefix, get_sql_fts, SQL_ENTITY_INFO_BY_QIDS_TEMPLATE
+from .sql import get_sql_exact_ids, get_sql_prefix_ids, get_sql_fts_ids, SQL_ENTITY_INFO_BY_QIDS_TEMPLATE, SQL_NAME_INDEX_BY_IDS_TEMPLATE
 
 
 STAGE_BONUS = {
@@ -45,24 +45,46 @@ def compute_importance_boost(entity: dict | None) -> float:
 def compute_final_score(text_score: float, best_source_type: str, entity: dict | None) -> float:
     source_boost = SOURCE_BOOST.get(best_source_type, 0.0)
     importance_boost = compute_importance_boost(entity)
-    return text_score * (1.0 + source_boost + importance_boost)
+    saturated = math.sqrt(text_score)
 
+    return saturated * (1.0 + source_boost + importance_boost)
 
-def dedup_stage_rows(rows: list[dict]) -> list[dict]:
+def fetch_name_index_rows_by_ids(conn, ids: list[int]) -> dict[int, dict]:
+    if not ids:
+        return {}
+
+    # SQLite 参数数有限，建议分块
+    CHUNK_SIZE = 5000
+    out = {}
+
+    for i in range(0, len(ids), CHUNK_SIZE):
+        chunk = ids[i:i + CHUNK_SIZE]
+        placeholders = ",".join("?" for _ in chunk)
+        sql = SQL_NAME_INDEX_BY_IDS_TEMPLATE.format(placeholders=placeholders)
+        cur = conn.execute(sql, chunk)
+
+        for row in cur.fetchall():
+            out[row["id"]] = {
+                "id": row["id"],
+                "qid": row["qid"],
+                "name": row["name"],
+                "source_type": get_source_type_from_id(row["source_type_id"]),
+                "source_type_id": row["source_type_id"],
+            }
+
+    return out
+
+def dedup_stage_id_rows(rows: list[dict]) -> list[dict]:
     """
-    UNION ALL 会让同一条 name_index 记录在两个分支都命中时重复返回。
-    这里做轻量去重，避免重复计分。
+    对同一 stage 内重复命中的同一个 id 去重。
+    exact/prefix 的 UNION ALL 可能产生重复 id。
+    保留 stage 信息，避免丢失多阶段累计能力。
     """
     seen = set()
     out = []
 
     for row in rows:
-        key = (
-            row["qid"],
-            row["name"],
-            row["source_type"],
-            row["stage"],
-        )
+        key = (row["id"], row["stage"])
         if key in seen:
             continue
         seen.add(key)
@@ -71,19 +93,21 @@ def dedup_stage_rows(rows: list[dict]) -> list[dict]:
     return out
 
 
+
+
 def run_exact_query(conn, lang_id: int, norm: str, loose: str, limit: int):
-    sql = get_sql_exact()
+    sql = get_sql_exact_ids()
     cur = conn.execute(sql, (lang_id, norm, lang_id, loose, limit))
+
     rows = []
     for row in cur.fetchall():
         rows.append({
-            "qid": row["qid"],
-            "name": row["name"],
-            "source_type": get_source_type_from_id(row["source_type_id"]),
+            "id": row["id"],
             "stage": "exact",
             "fts_rank": None,
         })
-    return dedup_stage_rows(rows)
+    return dedup_stage_id_rows(rows)
+
 
 
 def build_prefix_range(prefix: str) -> tuple[str, str]:
@@ -100,12 +124,12 @@ def build_prefix_range(prefix: str) -> tuple[str, str]:
     raise ValueError("failed to build prefix upper bound")
 
 def run_prefix_query(conn, lang_id: int, norm: str, loose: str, limit: int):
-    sql = get_sql_prefix()
+    sql = get_sql_prefix_ids()
 
     try:
         norm_lo, norm_hi = build_prefix_range(norm)
         loose_lo, loose_hi = build_prefix_range(loose)
-    except ValueError as e:
+    except ValueError:
         return []
 
     cur = conn.execute(
@@ -120,13 +144,12 @@ def run_prefix_query(conn, lang_id: int, norm: str, loose: str, limit: int):
     rows = []
     for row in cur.fetchall():
         rows.append({
-            "qid": row["qid"],
-            "name": row["name"],
-            "source_type": get_source_type_from_id(row["source_type_id"]),
+            "id": row["id"],
             "stage": "prefix",
             "fts_rank": None,
         })
-    return dedup_stage_rows(rows)
+    return dedup_stage_id_rows(rows)
+
 
 
 
@@ -139,19 +162,36 @@ def build_lang_fts_query(lang_id: int, fts_query: str) -> str:
 
 
 def run_fts_query(conn, lang_id: int, fts_query: str, limit: int):
-    sql = get_sql_fts()
+    sql = get_sql_fts_ids()
     match_query = build_lang_fts_query(lang_id, fts_query)
     cur = conn.execute(sql, (match_query, limit))
+
     rows = []
     for row in cur.fetchall():
         rows.append({
-            "qid": row["qid"],
-            "name": row["name"],
-            "source_type": get_source_type_from_id(row["source_type_id"]),
+            "id": row["id"],
             "stage": "fts",
             "fts_rank": row["fts_rank"],
         })
-    return dedup_stage_rows(rows)
+    return dedup_stage_id_rows(rows)
+
+def materialize_candidates(id_hits: list[dict], name_index_map: dict[int, dict]) -> list[dict]:
+    candidates = []
+
+    for hit in id_hits:
+        detail = name_index_map.get(hit["id"])
+        if not detail:
+            continue
+
+        candidates.append({
+            "qid": detail["qid"],
+            "name": detail["name"],
+            "source_type": detail["source_type"],
+            "stage": hit["stage"],
+            "fts_rank": hit["fts_rank"],
+        })
+
+    return candidates
 
 
 def fetch_entity_info(conn, qids: list[str]) -> dict[str, dict]:
@@ -288,7 +328,6 @@ def merge_candidates(lang: str, candidates: list[dict], entity_info_map: dict[st
     )
 
 
-
 def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
     if not lang:
         raise InvalidQueryError("Missing required parameter: lang")
@@ -310,8 +349,7 @@ def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
     if not norm and not loose:
         raise InvalidQueryError("Query is empty after normalization")
 
-
-    candidates = []
+    id_hits = []
 
     # 1) exact
     t0 = time.perf_counter()
@@ -324,7 +362,7 @@ def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
     )
     t1 = time.perf_counter()
     print(f"exact end, cost: {(t1 - t0) * 1000:.2f}ms, rows: {len(exact_rows)}")
-    candidates.extend(exact_rows)
+    id_hits.extend(exact_rows)
 
     # 2) prefix
     prefix_seed = norm or loose or ""
@@ -339,7 +377,7 @@ def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
         )
         t1 = time.perf_counter()
         print(f"prefix end, cost: {(t1 - t0) * 1000:.2f}ms, rows: {len(prefix_rows)}")
-        candidates.extend(prefix_rows)
+        id_hits.extend(prefix_rows)
     else:
         print("prefix skipped (query too short)")
 
@@ -355,14 +393,27 @@ def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
         )
         t1 = time.perf_counter()
         print(f"fts end, cost: {(t1 - t0) * 1000:.2f}ms, rows: {len(fts_rows)}")
-        candidates.extend(fts_rows)
+        id_hits.extend(fts_rows)
     else:
         print("fts skipped (empty query)")
 
-    # 去掉完全没结果的情况
-    if not candidates:
+    if not id_hits:
         return SearchResponse(total_matches=0, results=[])
 
+    # 按 (id, stage) 再做一次全局去重
+    id_hits = dedup_stage_id_rows(id_hits)
+
+    # 批量加载 name_index 明细
+    unique_ids = list(dict.fromkeys(hit["id"] for hit in id_hits))
+    t0 = time.perf_counter()
+    name_index_map = fetch_name_index_rows_by_ids(conn, unique_ids)
+    t1 = time.perf_counter()
+    print(f"name_index fetch end, cost: {(t1 - t0) * 1000:.2f}ms, ids: {len(unique_ids)}")
+
+    candidates = materialize_candidates(id_hits, name_index_map)
+
+    if not candidates:
+        return SearchResponse(total_matches=0, results=[])
 
     qids = list(dict.fromkeys(c["qid"] for c in candidates))
     entity_info_map = fetch_entity_info(conn, qids)
