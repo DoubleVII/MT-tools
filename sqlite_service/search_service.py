@@ -1,6 +1,7 @@
 import math
 import json
 import time
+import sqlite3
 
 from .config import CONFIG, SOURCE_BOOST, SOURCE_WEIGHT
 from .db import get_connection, get_lang_id, get_source_type_from_id
@@ -319,7 +320,7 @@ def merge_candidates(lang: str, candidates: list[dict], entity_info_map: dict[st
         ).to_dict()
 
         item["text_score"] = round(entry["text_score"], 3)
-        item["importance"] = entry["entity_info"]
+        # item["importance"] = entry["entity_info"]
         results.append(item)
 
     return SearchResponse(
@@ -328,7 +329,7 @@ def merge_candidates(lang: str, candidates: list[dict], entity_info_map: dict[st
     )
 
 
-def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
+def search(conn: sqlite3.Connection, lang: str, query: str, limit: int | None = None) -> SearchResponse:
     if not lang:
         raise InvalidQueryError("Missing required parameter: lang")
     if not query or not query.strip():
@@ -336,8 +337,6 @@ def search(lang: str, query: str, limit: int | None = None) -> SearchResponse:
 
     limit = limit or CONFIG.default_limit
     limit = max(1, min(limit, CONFIG.max_limit))
-
-    conn = get_connection()
 
     lang_id = get_lang_id(lang)
     if lang_id < 0:
