@@ -1,11 +1,13 @@
 from flask import Flask, jsonify, request
 
+from kiwix_reader import preload_archives, read_article_by_lang_title
 from sqlite_service import search, get_connection, close_connection
-from .caches import search_cache
+from .caches import search_cache, zim_cache
 from .cache_service import cached
 
 app = Flask(__name__)
 
+preload_archives()
 
 @app.teardown_appcontext
 def teardown_db(exception):
@@ -22,6 +24,15 @@ def cached_search(lang, query, limit):
         return search(conn, lang, query, limit)
     finally:
         close_connection(conn)
+
+
+@cached(
+    cache=zim_cache,
+    ttl=600,
+    key_func=lambda lang, title: ("wiki_read", lang, title),
+)
+def cached_read_article(lang, title):
+    return read_article_by_lang_title(lang, title)
 
 @app.route("/healthz", methods=["GET"])
 def healthz():
@@ -45,12 +56,36 @@ def search_endpoint():
 
     return jsonify(search_response)
 
+@app.route("/read", methods=["GET"])
+def read_article_endpoint():
+    lang = (request.args.get("lang") or "").strip()
+    title = (request.args.get("title") or "").strip()
+
+    if not lang:
+        return jsonify({"error": "missing 'lang'"}), 400
+    if not title:
+        return jsonify({"error": "missing 'title'"}), 400
+    
+    if len(lang) != 2:
+        return jsonify({"error": "lang must be 2 characters"}), 400
+
+    try:
+        article = cached_read_article(lang, title)
+    except Exception as e:
+        return jsonify({"error": f"Unexpected server error: {e}"}), 500
+
+    return jsonify(article)
+
+
 
 @app.route("/cache/stats", methods=["GET"])
 def cache_stats():
     return jsonify({
         "search_cache": search_cache.stats(),
+        "zim_cache": zim_cache.stats(),
     })
+
+
 
 if __name__ == "__main__":
     # 本地开发用，生产请用 gunicorn
