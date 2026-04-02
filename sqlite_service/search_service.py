@@ -3,19 +3,14 @@ import json
 import time
 import sqlite3
 
-from .config import CONFIG, SOURCE_BOOST, SOURCE_WEIGHT
+from .config import CONFIG, SOURCE_BOOST, SOURCE_WEIGHT, STAGE_BONUS
 from .db import get_connection, get_lang_id, get_source_type_from_id
 from .errors import InvalidQueryError
 from .models import SearchResponse, SearchResultItem
 from .normalizer import normalize_name, normalize_name_loose, build_fts_query
 from .sql import get_sql_exact_ids, get_sql_prefix_ids, get_sql_fts_ids, SQL_ENTITY_INFO_BY_QIDS_TEMPLATE, SQL_NAME_INDEX_BY_IDS_TEMPLATE
+from kiwix_reader import has_entry_by_title_in_lang
 
-
-STAGE_BONUS = {
-    "exact": 1000.0,
-    "prefix": 300.0,
-    "fts": 100.0,
-}
 
 
 
@@ -225,6 +220,16 @@ def get_entity_description(entity: dict | None, lang: str) -> str | None:
 
     return descriptions.get(lang, None)
 
+def get_entity_label(entity: dict | None, lang: str) -> str | None:
+    if not entity:
+        return None
+
+    try:
+        labels = json.loads(entity["labels_json"])
+    except json.JSONDecodeError:
+        return None
+
+    return labels.get(lang, None)
 
 def get_entity_title(entity: dict | None, lang: str) -> str | None:
     if not entity:
@@ -302,14 +307,22 @@ def merge_candidates(lang: str, candidates: list[dict], entity_info_map: dict[st
     )
 
     results = []
-    for entry in ranked[:limit]:
+    for entry in ranked:
         entity = entity_info_map.get(entry["qid"])
         
         entity_title = get_entity_title(entity, lang)
+
+        if entity_title and has_entry_by_title_in_lang(lang, entity_title):
+            has_wiki_page = True
+        else:
+            if entity_title:
+                print(f"[DEBUG] no page for entity_title: {entity_title}, lang: {lang}")
+            has_wiki_page = False
         
         item = SearchResultItem(
             qid=entry["qid"],
             title=entity_title,
+            label=get_entity_label(entity, lang),
             lang=lang,
             score=round(entry["final_score"], 3),
             best_match_name=entry["best_match_name"],
@@ -317,11 +330,14 @@ def merge_candidates(lang: str, candidates: list[dict], entity_info_map: dict[st
             matched_names=entry["matched_names"][:10],
             matched_source_types=entry["matched_source_types"],
             description=get_entity_description(entry["entity_info"], lang),
+            has_wiki_page=has_wiki_page,
         ).to_dict()
 
         item["text_score"] = round(entry["text_score"], 3)
         # item["importance"] = entry["entity_info"]
         results.append(item)
+        if len(results) >= limit:
+            break
 
     return SearchResponse(
         total_matches=len(grouped),
@@ -417,4 +433,9 @@ def search(conn: sqlite3.Connection, lang: str, query: str, limit: int | None = 
     qids = list(dict.fromkeys(c["qid"] for c in candidates))
     entity_info_map = fetch_entity_info(conn, qids)
 
-    return merge_candidates(lang, candidates, entity_info_map, limit)
+    t0 = time.perf_counter()
+    response = merge_candidates(lang, candidates, entity_info_map, limit)
+    t1 = time.perf_counter()
+    print(f"merge end, cost: {(t1 - t0) * 1000:.2f}ms, rows: {len(response.results)}")
+   
+    return response

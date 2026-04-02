@@ -31,6 +31,20 @@ SOURCE_BOOST = {
     "label": 0.08,
 }
 
+
+STAGE_BONUS = {
+    "exact": 1000.0,
+    "prefix": 300.0,
+    "fts": 100.0,
+}
+
+
+PREFIX = [
+    "Category:",
+    "Template:",
+    ""
+]
+
 LANG_ID_MAP: dict[str, int] = {}
 LANG_FROM_ID_MAP: dict[int, str] = {}
 SOURCE_TYPE_ID_MAP: dict[str, int] = {}

@@ -13,6 +13,8 @@ class SearchResultItem:
     matched_names: list[str]
     matched_source_types: list[str]
     description: str | None = None
+    label: str | None = None
+    has_wiki_page: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
