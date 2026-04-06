@@ -1,26 +1,24 @@
 """Kiwix Search custom exceptions."""
 
 
-class KiwixReaderError(Exception):
-    """Base exception for kiwix reader library."""
-
-    pass
-
-
-class ArchiveNotFoundError(KiwixReaderError):
+class ArchiveNotFoundError(Exception):
     """Raised when ZIM archive file is not found."""
 
     pass
 
+class EntryNotFoundError(Exception):
+    """Raised when entry is not found in ZIM archive."""
+
+    pass
 
 
-class ArticleReadError(KiwixReaderError):
+class ArticleReadError(Exception):
     """Raised when reading an article fails."""
 
     pass
 
 
-class ConfigError(KiwixReaderError):
+class ConfigError(Exception):
     """Raised when configuration is invalid."""
 
     pass

@@ -26,6 +26,10 @@ class Config:
     def get_zim_names(self) -> List[str]:
         """Get list of ZIM file names."""
         return [zf.name for zf in self.zim_files]
+    
+    def get_zim_langs(self) -> List[str]:
+        """Get list of ZIM file languages."""
+        return [zf.lang for zf in self.zim_files]
 
     def get_zim_path(self, name: str) -> Optional[str]:
         """Get ZIM file path by name."""

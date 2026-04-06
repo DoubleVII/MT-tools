@@ -17,5 +17,6 @@ from .exceptions import (
     ArchiveNotFoundError,
     ArticleReadError,
     ConfigError,
+    EntryNotFoundError,
 )
-from .reader import read_article_by_lang_title, has_entry_by_title_in_lang
+from .reader import read_page_by_lang_title, has_entry_by_title_in_lang
