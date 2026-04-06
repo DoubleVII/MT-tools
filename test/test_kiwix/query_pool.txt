@@ -1,0 +1,246 @@
+Albert Einstein
+Isaac Newton
+Marie Curie
+Charles Darwin
+Nikola Tesla
+Galileo Galilei
+Ada Lovelace
+Alan Turing
+Stephen Hawking
+Leonardo da Vinci
+William Shakespeare
+Ludwig van Beethoven
+Johann Sebastian Bach
+Wolfgang Amadeus Mozart
+Vincent van Gogh
+Pablo Picasso
+Claude Monet
+Sigmund Freud
+Carl Jung
+Socrates
+Plato
+Aristotle
+Confucius
+Sun Tzu
+Qin Shi Huang
+Genghis Khan
+Napoleon
+Julius Caesar
+Alexander the Great
+Cleopatra
+Roman Empire
+Byzantine Empire
+Ottoman Empire
+Ming dynasty
+Qing dynasty
+French Revolution
+Industrial Revolution
+World War I
+World War II
+Cold War
+United Nations
+European Union
+NATO
+United States
+China
+Japan
+Germany
+France
+United Kingdom
+Russia
+India
+Brazil
+Canada
+Australia
+South Africa
+New York City
+London
+Paris
+Tokyo
+Beijing
+Shanghai
+Hong Kong
+Singapore
+San Francisco
+Los Angeles
+Berlin
+Moscow
+Delhi
+Machine learning
+Artificial intelligence
+Deep learning
+Neural network
+Computer science
+Data science
+Big data
+Cloud computing
+Cybersecurity
+Blockchain
+Bitcoin
+Ethereum
+Internet
+World Wide Web
+Linux
+Ubuntu
+Python programming language
+Java programming language
+C++
+JavaScript
+TypeScript
+Rust programming language
+Go programming language
+SQL
+PostgreSQL
+MySQL
+Redis
+Docker
+Kubernetes
+Git
+GitHub
+Operating system
+Database
+Search engine
+Apache Hadoop
+Apache Spark
+TensorFlow
+PyTorch
+OpenAI
+ChatGPT
+Natural language processing
+Computer vision
+Reinforcement learning
+Quantum mechanics
+Theory of relativity
+General relativity
+Special relativity
+Black hole
+Milky Way
+Solar System
+Earth
+Moon
+Mars
+Jupiter
+Saturn
+Neptune
+Exoplanet
+Hubble Space Telescope
+James Webb Space Telescope
+NASA
+SpaceX
+Apollo 11
+International Space Station
+Climate change
+Global warming
+Biodiversity
+Photosynthesis
+DNA
+RNA
+Protein
+Cell biology
+Evolution
+Genetics
+Human brain
+Mathematics
+Calculus
+Linear algebra
+Probability
+Statistics
+Prime number
+Topology
+Geometry
+Cryptography
+Economics
+Microeconomics
+Macroeconomics
+Inflation
+Recession
+Stock market
+Game theory
+Philosophy
+Ethics
+Logic
+Metaphysics
+Existentialism
+Democracy
+Republic
+Socialism
+Capitalism
+Anarchism
+Feminism
+Human rights
+Religion
+Buddhism
+Christianity
+Islam
+Hinduism
+Judaism
+Taoism
+Chinese language
+English language
+Spanish language
+French language
+German language
+Japanese language
+Korean language
+Russian language
+Arabic language
+Latin
+Peking University
+Tsinghua University
+Harvard University
+Stanford University
+University of Oxford
+University of Cambridge
+Massachusetts Institute of Technology
+COVID-19
+Influenza
+Cancer
+Diabetes
+Heart disease
+Vaccine
+Antibiotic
+Public health
+Basketball
+Football
+Association football
+Olympic Games
+FIFA World Cup
+NBA
+Michael Jordan
+LeBron James
+Lionel Messi
+Cristiano Ronaldo
+Roger Federer
+Rafael Nadal
+Novak Djokovic
+Taylor Swift
+The Beatles
+Michael Jackson
+Beyoncé
+Jay-Z
+K-pop
+Anime
+Manga
+Studio Ghibli
+Hayao Miyazaki
+One Piece
+Naruto
+Dragon Ball
+Pokémon
+The Lord of the Rings
+Harry Potter
+Star Wars
+Marvel Comics
+DC Comics
+Superman
+Batman
+Spider-Man
+Sherlock Holmes
+Artificial general intelligence
+Large language model
+Transformer neural network
+Information retrieval
+Elasticsearch
+Wikipedia
+Wikimedia Foundation
+MediaWiki
