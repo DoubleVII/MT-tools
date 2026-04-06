@@ -89,3 +89,31 @@ SELECT
 FROM entity_info e
 WHERE e.qid IN ({placeholders})
 """
+
+
+def get_sql_entity_by_qid() -> str:
+    return """
+SELECT
+    e.qid,
+    e.wikipedia_lang_count,
+    e.sitelink_count_total,
+    e.labels_json,
+    e.descriptions_json,
+    e.sitelinks_json
+FROM entity_info e
+WHERE e.qid = ?
+"""
+
+
+def get_sql_name_index_by_norm_name() -> str:
+    return """
+SELECT
+    ni.id,
+    ni.qid,
+    ni.name,
+    ni.source_type_id
+FROM name_index ni
+WHERE ni.lang_id = ?
+  AND ni.norm_name = ?
+ORDER BY source_type_id ASC
+"""

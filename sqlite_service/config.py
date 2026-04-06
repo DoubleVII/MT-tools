@@ -4,7 +4,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class SearchConfig:
     db_path: str = "/home/zfs01/yangs/data/wikidata/wikidata_search_db.v9.sqlite"
-    default_limit: int = 10
+    default_limit: int = 5
     max_limit: int = 50
 
     exact_overfetch: int = 32

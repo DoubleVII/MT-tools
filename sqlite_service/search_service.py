@@ -4,7 +4,7 @@ import time
 import sqlite3
 
 from .config import CONFIG, SOURCE_BOOST, SOURCE_WEIGHT, STAGE_BONUS
-from .db import get_connection, get_lang_id, get_source_type_from_id
+from .db import get_lang_id, get_source_type_from_id
 from .errors import InvalidQueryError
 from .models import SearchResponse, SearchResultItem
 from .normalizer import normalize_name, normalize_name_loose, build_fts_query

@@ -24,3 +24,13 @@ class SearchResultItem:
 class SearchResponse:
     total_matches: int
     results: list[dict[str, Any]]
+
+
+@dataclass
+class Entity:
+    qid: str
+    wikipedia_lang_count: int
+    sitelink_count_total: int
+    labels: dict[str, str]
+    descriptions: dict[str, str]
+    sitelinks: dict[str, str]
