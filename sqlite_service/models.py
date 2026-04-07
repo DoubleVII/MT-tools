@@ -34,3 +34,4 @@ class Entity:
     labels: dict[str, str]
     descriptions: dict[str, str]
     sitelinks: dict[str, str]
+    has_wiki_page: dict[str, bool]

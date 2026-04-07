@@ -79,10 +79,16 @@ def assert_entity_success(payload):
     assert "sitelinks" in payload
     assert "wikipedia_lang_count" in payload
     assert "sitelink_count_total" in payload
+    assert "has_wiki_page" in payload
 
     assert isinstance(payload["labels"], dict)
     assert isinstance(payload["descriptions"], dict)
     assert isinstance(payload["sitelinks"], dict)
+    assert isinstance(payload["has_wiki_page"], dict)
+    
+    for lang, has_page in payload["has_wiki_page"].items():
+        assert isinstance(lang, str), f"has_wiki_page key must be str, got: {type(lang)}"
+        assert isinstance(has_page, bool), f"has_wiki_page value must be bool, got: {type(has_page)}"
 
 
 def assert_qid_success(payload):
