@@ -1,7 +1,5 @@
 """Page reading functionality for ZIM files."""
 
-from strip_tags import strip_tags
-
 from .archive import get_archive_by_name, get_archive_by_lang
 from .exceptions import ArticleReadError, ArchiveNotFoundError
 
@@ -17,8 +15,7 @@ def read_page_by_lang_title(lang: str, title: str) -> str:
         zim = get_archive_by_lang(lang)
         entry = zim.get_entry_by_title(title)
         html_content = bytes(entry.get_item().content).decode("UTF-8")
-        plain_text = strip_tags(html_content, minify=True, remove_blank_lines=True)
-        return plain_text.strip()
+        return html_content
     except ArchiveNotFoundError:
         return None
     except KeyError as e:
@@ -47,8 +44,7 @@ def read_page(name: str, title: str) -> str:
         zim = get_archive_by_name(name)
         entry = zim.get_entry_by_title(title)
         html_content = bytes(entry.get_item().content).decode("UTF-8")
-        plain_text = strip_tags(html_content, minify=True, remove_blank_lines=True)
-        return plain_text.strip()
+        return html_content
     except ArchiveNotFoundError:
         return None
     except KeyError as e:
